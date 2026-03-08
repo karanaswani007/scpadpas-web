@@ -16,9 +16,45 @@ const upload = multer({
 });
 
 // ── Firestore collection / document names ─────────────────────────
-const HISTORY_COL   = "detections";          // each doc = one detection
-const COMMANDS_DOC  = "device_commands";     // single doc in "devices" col
-const COMMANDS_COL  = "devices";
+const HISTORY_COL  = "detections";       // each doc = one detection
+const COMMANDS_DOC = "device_commands";  // single doc in "devices" col
+const COMMANDS_COL = "devices";
+
+// ═════════════════════════════════════════════════════════════════
+//  AUTO-TRIGGER HELPER
+//  Called after every detection — updates Firestore device commands
+//  Wild     → Siren ON,  Deterrent OFF
+//  NonWild  → Siren OFF, Deterrent ON
+//  NoAnimal → Siren OFF, Deterrent OFF
+// ═════════════════════════════════════════════════════════════════
+async function autoTrigger(prediction) {
+  let commands = {};
+
+  if (prediction === "Wild") {
+    commands = { system_enabled: true, siren: true, deterrent: false };
+    console.log("[AutoTrigger] 🦊 WILD → Siren ON, Deterrent OFF");
+
+  } else if (prediction === "NonWild") {
+    commands = { system_enabled: true, siren: false, deterrent: true };
+    console.log("[AutoTrigger] 🌿 NONWILD → Siren OFF, Deterrent ON");
+
+  } else if (prediction === "NoAnimal") {
+    commands = { system_enabled: true, siren: false, deterrent: false };
+    console.log("[AutoTrigger] ✅ NO ANIMAL → Both OFF");
+
+  } else {
+    commands = { system_enabled: true, siren: false, deterrent: false };
+    console.log("[AutoTrigger] ❓ Unknown → Both OFF (safe mode)");
+  }
+
+  commands.updated_at   = new Date().toISOString();
+  commands.triggered_by = prediction;
+
+  await db
+    .collection(COMMANDS_COL)
+    .doc(COMMANDS_DOC)
+    .set(commands, { merge: true });
+}
 
 // ═════════════════════════════════════════════════════════════════
 //  POST /api/test-image
@@ -31,8 +67,6 @@ router.post("/test-image", upload.single("image"), async (req, res) => {
       return res.status(400).json({ error: "No image file provided." });
     }
 
-    // Build a multipart body to send to the Flask AI API
-    // NOTE: field name must match what Flask expects — "file" is the default
     const form = new FormData();
     form.append("file", req.file.buffer, {
       filename:    req.file.originalname || "image.jpg",
@@ -42,12 +76,11 @@ router.post("/test-image", upload.single("image"), async (req, res) => {
     const aiResponse = await axios.post(
       process.env.AI_API_URL || "https://scpadpas-hmt7.onrender.com/predict",
       form,
-      { headers: form.getHeaders(), timeout: 120000 }  // 2 min for cold starts
+      { headers: form.getHeaders(), timeout: 120000 }
     );
 
     const { prediction, confidence } = aiResponse.data;
 
-    // Auto-log to Firestore when tested via the AI Testing page
     const record = {
       device_id:  req.body.device_id || "web-tester",
       prediction,
@@ -57,13 +90,15 @@ router.post("/test-image", upload.single("image"), async (req, res) => {
     };
     await db.collection(HISTORY_COL).add(record);
 
-    return res.json({ prediction, confidence, logged: true });
+    // ── AUTO-TRIGGER device commands based on prediction ──────────
+    await autoTrigger(prediction);
+
+    return res.json({ prediction, confidence, logged: true, triggered: true });
   } catch (err) {
     console.error("[/test-image] Error:", err.message);
-    // Log the full Flask response so we can debug field name issues
     if (err.response) {
-      console.error("[/test-image] Flask response status:", err.response.status);
-      console.error("[/test-image] Flask response data:",   JSON.stringify(err.response.data));
+      console.error("[/test-image] Flask status:", err.response.status);
+      console.error("[/test-image] Flask data:",   JSON.stringify(err.response.data));
     }
     const status = err.response?.status || 500;
     const msg    = err.response?.data?.error || err.response?.data?.message || err.message;
@@ -73,7 +108,6 @@ router.post("/test-image", upload.single("image"), async (req, res) => {
 
 // ═════════════════════════════════════════════════════════════════
 //  GET /api/history
-//  Returns detection history from Firestore (newest first, max 200)
 // ═════════════════════════════════════════════════════════════════
 router.get("/history", async (req, res) => {
   try {
@@ -84,11 +118,7 @@ router.get("/history", async (req, res) => {
       .limit(Math.min(limit, 200))
       .get();
 
-    const records = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
+    const records = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     return res.json({ count: records.length, records });
   } catch (err) {
     console.error("[/history] Error:", err.message);
@@ -97,18 +127,14 @@ router.get("/history", async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════════════
-//  POST /api/log
-//  Manually log a detection record (called by ESP32 or other clients)
-//  Body: { device_id, prediction, confidence, timestamp? }
+//  POST /api/log  (called by ESP32)
 // ═════════════════════════════════════════════════════════════════
 router.post("/log", async (req, res) => {
   try {
     const { device_id, prediction, confidence, timestamp } = req.body;
 
     if (!device_id || !prediction || confidence === undefined) {
-      return res.status(400).json({
-        error: "Required fields: device_id, prediction, confidence",
-      });
+      return res.status(400).json({ error: "Required: device_id, prediction, confidence" });
     }
 
     const record = {
@@ -119,7 +145,11 @@ router.post("/log", async (req, res) => {
     };
 
     const docRef = await db.collection(HISTORY_COL).add(record);
-    return res.json({ success: true, id: docRef.id, record });
+
+    // ── AUTO-TRIGGER device commands based on prediction ──────────
+    await autoTrigger(prediction);
+
+    return res.json({ success: true, id: docRef.id, record, triggered: true });
   } catch (err) {
     console.error("[/log] Error:", err.message);
     return res.status(500).json({ error: err.message });
@@ -127,15 +157,12 @@ router.post("/log", async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════════════
-//  POST /api/device-control
-//  Update the Firestore device_commands document
-//  Body: { system_enabled?, siren?, deterrent? }
+//  POST /api/device-control  (manual override from dashboard)
 // ═════════════════════════════════════════════════════════════════
 router.post("/device-control", async (req, res) => {
   try {
     const { system_enabled, siren, deterrent } = req.body;
 
-    // Build only the fields that were actually sent
     const update = {};
     if (system_enabled !== undefined) update.system_enabled = Boolean(system_enabled);
     if (siren         !== undefined) update.siren           = Boolean(siren);
@@ -146,12 +173,7 @@ router.post("/device-control", async (req, res) => {
       return res.status(400).json({ error: "No control fields provided." });
     }
 
-    // setMerge:true creates the document if it doesn't exist yet
-    await db
-      .collection(COMMANDS_COL)
-      .doc(COMMANDS_DOC)
-      .set(update, { merge: true });
-
+    await db.collection(COMMANDS_COL).doc(COMMANDS_DOC).set(update, { merge: true });
     return res.json({ success: true, updated: update });
   } catch (err) {
     console.error("[/device-control] Error:", err.message);
@@ -161,23 +183,12 @@ router.post("/device-control", async (req, res) => {
 
 // ═════════════════════════════════════════════════════════════════
 //  GET /api/device-status
-//  Returns current device command state
 // ═════════════════════════════════════════════════════════════════
 router.get("/device-status", async (req, res) => {
   try {
-    const doc = await db
-      .collection(COMMANDS_COL)
-      .doc(COMMANDS_DOC)
-      .get();
-
+    const doc = await db.collection(COMMANDS_COL).doc(COMMANDS_DOC).get();
     if (!doc.exists) {
-      // Return safe defaults if document has never been written
-      return res.json({
-        system_enabled: false,
-        siren:          false,
-        deterrent:      false,
-        updated_at:     null,
-      });
+      return res.json({ system_enabled: false, siren: false, deterrent: false, updated_at: null });
     }
     return res.json(doc.data());
   } catch (err) {
@@ -188,16 +199,13 @@ router.get("/device-status", async (req, res) => {
 
 // ═════════════════════════════════════════════════════════════════
 //  GET /api/dashboard-stats
-//  Returns aggregated stats for the main dashboard
 // ═════════════════════════════════════════════════════════════════
 router.get("/dashboard-stats", async (req, res) => {
   try {
-    // Get today's start in ISO format
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayISO = todayStart.toISOString();
 
-    // Fetch records from today
     const snapshot = await db
       .collection(HISTORY_COL)
       .where("timestamp", ">=", todayISO)
@@ -207,12 +215,12 @@ router.get("/dashboard-stats", async (req, res) => {
     const records = snapshot.docs.map((d) => d.data());
 
     const stats = {
-      total_today:    records.length,
-      wild:           records.filter((r) => r.prediction === "Wild").length,
-      non_wild:       records.filter((r) => r.prediction === "NonWild").length,
-      no_animal:      records.filter((r) => r.prediction === "NoAnimal").length,
-      last_detection: records.length > 0 ? records[0].timestamp : null,
-      last_prediction:records.length > 0 ? records[0].prediction : null,
+      total_today:     records.length,
+      wild:            records.filter((r) => r.prediction === "Wild").length,
+      non_wild:        records.filter((r) => r.prediction === "NonWild").length,
+      no_animal:       records.filter((r) => r.prediction === "NoAnimal").length,
+      last_detection:  records.length > 0 ? records[0].timestamp : null,
+      last_prediction: records.length > 0 ? records[0].prediction : null,
     };
 
     return res.json(stats);
