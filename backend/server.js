@@ -40,3 +40,11 @@ app.listen(PORT, () => {
   console.log(`   AI API endpoint : ${process.env.AI_API_URL}`);
   console.log(`   Firebase Project: ${process.env.FIREBASE_PROJECT_ID}\n`);
 });
+
+// Keep-alive ping - Render ko sone nahi deta
+const axios = require("axios");
+setInterval(() => {
+  axios.get("https://scpadpas-web.onrender.com/api/health")
+    .then(() => console.log("[KeepAlive] Backend awake ✓"))
+    .catch(() => {});
+}, 14 * 60 * 1000); // har 14 minute mein ping
