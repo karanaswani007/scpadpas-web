@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SCPADPAS — AI Testing</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🌿</div>
+    <h1>SCPADPAS</h1>
+    <p>v1.0 · Field Monitor</p>
+  </div>
+  <div class="sys-status">
+    <div class="status-dot"></div>
+    <span>System Online</span>
+  </div>
+  <div class="nav-section-label">Navigation</div>
+  <a href="index.html"   class="nav-link"><span class="nav-icon">📊</span> Dashboard</a>
+  <a href="test.html"    class="nav-link"><span class="nav-icon">🔬</span> AI Testing</a>
+  <a href="history.html" class="nav-link"><span class="nav-icon">📋</span> Detection History</a>
+  <a href="control.html" class="nav-link"><span class="nav-icon">🎛️</span> Device Control</a>
+  <div class="nav-section-label">System</div>
+  <a href="index.html" class="nav-link"><span class="nav-icon">🏠</span> Back to Dashboard</a>
+  <div class="sidebar-footer">
+    SCPADPAS IoT System<br>
+    Smart Crop Protection<br>
+    Animal Deterrent &<br>
+    Predator Alert System<br><br>
+    <span class="text-green">● </span>ESP32 Connected
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<div class="main-content">
+
+  <header class="topbar">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <button class="hamburger" id="hamburger-btn" aria-label="Menu">☰</button>
+      <div class="topbar-title">
+        <h2>🔬 AI Testing</h2>
+        <p>Upload an image and run animal detection</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-time" id="live-clock">--:--:--</div>
+    </div>
+  </header>
+
+  <main class="page-content">
+
+    <!-- Info Banner -->
+    <div class="alert-ticker info" style="margin-bottom:24px;">
+      <span>ℹ️</span>
+      <span>Upload a field camera image to detect wild animals. Results are automatically logged to Firestore.</span>
+    </div>
+
+    <div class="two-col" style="gap:28px; align-items:start;">
+
+      <!-- ── LEFT: Upload Panel ── -->
+      <div>
+        <div class="section-card">
+          <div class="section-header">
+            <h3><span class="s-icon">📤</span> Upload Image</h3>
+          </div>
+          <div class="section-body">
+
+            <!-- Device ID field -->
+            <div style="margin-bottom:18px;">
+              <label style="font-size:12px; color:var(--text-muted); letter-spacing:0.1em; text-transform:uppercase; display:block; margin-bottom:8px;">
+                Device / Camera ID
+              </label>
+              <input
+                type="text"
+                id="device-id-input"
+                placeholder="e.g. ESP32-CAM-01"
+                value="web-tester"
+                style="width:100%; background:var(--bg-surface); border:1px solid var(--border); border-radius:7px;
+                       color:var(--text-primary); font-family:'Share Tech Mono',monospace; font-size:13px;
+                       padding:9px 14px; outline:none; transition:border-color 0.2s;"
+                onfocus="this.style.borderColor='var(--green-bright)'"
+                onblur="this.style.borderColor='var(--border)'"
+              />
+            </div>
+
+            <!-- Upload Zone -->
+            <div class="upload-zone" id="upload-zone">
+              <input type="file" id="img-input" accept="image/*" />
+              <div class="upload-icon">📸</div>
+              <h4>Drop image here</h4>
+              <p>or click to browse · JPG, PNG, WEBP supported</p>
+            </div>
+
+            <!-- Preview -->
+            <div id="preview-wrap" style="display:none; margin-top:16px;">
+              <div class="img-preview-wrap">
+                <img id="preview-img" src="" alt="Preview" />
+                <div class="img-overlay" id="img-overlay">
+                  <span id="img-filename">—</span>
+                </div>
+              </div>
+              <div style="display:flex; gap:10px; margin-top:12px;">
+                <button class="btn btn-primary w-full" id="run-btn" onclick="runPrediction()">
+                  <span>🔬</span> Run Detection
+                </button>
+                <button class="btn btn-outline" onclick="clearAll()" title="Clear">✕</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- API Info Card -->
+        <div class="section-card" style="margin-top:0;">
+          <div class="section-header">
+            <h3><span class="s-icon">🔗</span> AI API Info</h3>
+          </div>
+          <div class="section-body">
+            <div style="font-family:'Share Tech Mono',monospace; font-size:12px; line-height:2;">
+              <div style="color:var(--text-muted);">Endpoint</div>
+              <div style="color:var(--green-bright); word-break:break-all;">POST /predict</div>
+              <div style="color:var(--text-muted); margin-top:8px;">Input</div>
+              <div style="color:var(--text-secondary);">multipart/form-data · field: image</div>
+              <div style="color:var(--text-muted); margin-top:8px;">Output</div>
+              <div style="color:var(--text-secondary);">{ prediction, confidence }</div>
+              <div style="color:var(--text-muted); margin-top:8px;">Classes</div>
+              <div>
+                <span class="badge badge-wild" style="margin-right:6px;">Wild</span>
+                <span class="badge badge-nonwild" style="margin-right:6px;">NonWild</span>
+                <span class="badge badge-noanimal">NoAnimal</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── RIGHT: Result Panel ── -->
+      <div>
+        <div class="section-card">
+          <div class="section-header">
+            <h3><span class="s-icon">📊</span> Detection Result</h3>
+            <span class="badge badge-online" id="model-status">Model Ready</span>
+          </div>
+          <div class="section-body">
+
+            <!-- Loading state -->
+            <div id="result-loading" style="display:none; text-align:center; padding:40px;">
+              <div class="spinner" style="width:40px; height:40px; margin:0 auto 16px;"></div>
+              <p class="muted" style="font-family:'Share Tech Mono',monospace;">
+                Analysing image…<br>
+                <span style="font-size:11px;">Contacting AI API</span>
+              </p>
+            </div>
+
+            <!-- Empty state -->
+            <div id="result-empty" style="padding:20px 0;">
+              <div class="empty-state">
+                <div class="e-icon">🤖</div>
+                <h4>No result yet</h4>
+                <p>Upload an image and click "Run Detection"</p>
+              </div>
+            </div>
+
+            <!-- Result box (hidden until result) -->
+            <div id="result-display" style="display:none;"></div>
+
+          </div>
+        </div>
+
+        <!-- Recent test log -->
+        <div class="section-card">
+          <div class="section-header">
+            <h3><span class="s-icon">🕐</span> Session Test Log</h3>
+            <button class="btn btn-outline btn-sm" onclick="clearLog()">Clear</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>File</th>
+                  <th>Prediction</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="test-log-tbody">
+                <tr>
+                  <td colspan="4" style="text-align:center; color:var(--text-muted); padding:24px; font-family:'Share Tech Mono',monospace; font-size:12px;">
+                    No tests run this session
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="script.js"></script>
+<script>
+  document.getElementById("hamburger-btn").addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.toggle("open");
+    document.getElementById("sidebar-overlay").classList.toggle("show");
+  });
+  document.getElementById("sidebar-overlay").addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.remove("open");
+    document.getElementById("sidebar-overlay").classList.remove("show");
+  });
+
+  let selectedFile = null;
+  const testLog = [];
+
+  initUploadZone("upload-zone", "img-input", (file) => {
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      document.getElementById("preview-img").src = e.target.result;
+      document.getElementById("img-filename").textContent = `📁 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      document.getElementById("preview-wrap").style.display = "block";
+    };
+    reader.readAsDataURL(file);
+  });
+
+  async function runPrediction() {
+    if (!selectedFile) {
+      showToast("Please upload an image first.", "warning");
+      return;
+    }
+
+    const runBtn = document.getElementById("run-btn");
+    const loading = document.getElementById("result-loading");
+    const empty   = document.getElementById("result-empty");
+    const display = document.getElementById("result-display");
+    const modelStatus = document.getElementById("model-status");
+
+    runBtn.disabled = true;
+    runBtn.innerHTML = `<div class="spinner"></div> Analysing…`;
+    loading.style.display = "block";
+    empty.style.display   = "none";
+    display.style.display = "none";
+    modelStatus.textContent = "Processing…";
+    modelStatus.className   = "badge badge-offline";
+
+    try {
+      const formData = new FormData();
+      formData.append("image", selectedFile);
+      formData.append("device_id", document.getElementById("device-id-input").value || "web-tester");
+
+      const data = await fetch(API_BASE + "/test-image", {
+        method: "POST",
+        body: formData,
+      }).then(async (r) => {
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error || "API error");
+        return json;
+      });
+
+      const { prediction, confidence } = data;
+      const confPct = (parseFloat(confidence) * 100).toFixed(1);
+      const cls = prediction === "Wild" ? "wild" : prediction === "NonWild" ? "nonwild" : "noanimal";
+      const emoji = prediction === "Wild" ? "🦊" : prediction === "NonWild" ? "🌿" : "✅";
+      const colorCls = prediction === "Wild" ? "text-red" : prediction === "NonWild" ? "text-green" : "text-blue";
+
+      display.innerHTML = `
+        <div class="result-box ${cls}">
+          <div class="result-prediction ${colorCls}">${emoji} ${prediction}</div>
+          <div class="result-confidence">Confidence Score</div>
+          <div style="font-size:48px; font-weight:800; font-family:'Share Tech Mono',monospace; color:${cls==='wild'?'var(--red)':cls==='nonwild'?'var(--green-bright)':'var(--blue)'}; margin-bottom:12px;">
+            ${confPct}%
+          </div>
+          ${confBar(confPct, cls)}
+          <div style="margin-top:16px; font-size:12px; color:var(--text-muted); font-family:'Share Tech Mono',monospace;">
+            ✓ Logged to Firestore automatically
+          </div>
+        </div>
+        <div style="margin-top:16px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:8px; padding:14px; text-align:center;">
+            <div style="font-size:10px; color:var(--text-muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;">Prediction</div>
+            <div class="${colorCls}" style="font-size:16px; font-weight:700; font-family:'Share Tech Mono',monospace;">${prediction}</div>
+          </div>
+          <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:8px; padding:14px; text-align:center;">
+            <div style="font-size:10px; color:var(--text-muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;">Confidence</div>
+            <div class="${colorCls}" style="font-size:16px; font-weight:700; font-family:'Share Tech Mono',monospace;">${confPct}%</div>
+          </div>
+        </div>`;
+
+      display.style.display = "block";
+      loading.style.display = "none";
+      animateBars();
+
+      modelStatus.textContent = "Result Ready";
+      modelStatus.className   = "badge badge-online";
+
+      // Add to session log
+      testLog.unshift({ time: new Date().toISOString(), file: selectedFile.name, prediction, confidence: confPct });
+      renderTestLog();
+
+      if (prediction === "Wild") {
+        showToast("⚠️ Wild animal detected! Check field.", "error");
+      } else {
+        showToast(`Detection complete: ${prediction}`, "success");
+      }
+
+    } catch (err) {
+      console.error(err);
+      loading.style.display = "none";
+      empty.style.display = "block";
+      modelStatus.textContent = "Error";
+      modelStatus.className = "badge badge-offline";
+      showToast("Detection failed: " + err.message, "error");
+    } finally {
+      runBtn.disabled = false;
+      runBtn.innerHTML = `<span>🔬</span> Run Detection`;
+    }
+  }
+
+  function renderTestLog() {
+    const tbody = document.getElementById("test-log-tbody");
+    if (testLog.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;font-family:'Share Tech Mono',monospace;font-size:12px;">No tests run this session</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = testLog.map(l => `
+      <tr>
+        <td>${formatTimestamp(l.time)}</td>
+        <td style="max-width:120px; overflow:hidden; text-overflow:ellipsis;">${l.file}</td>
+        <td>${predictionBadge(l.prediction)}</td>
+        <td>${l.confidence}%</td>
+      </tr>`).join("");
+  }
+
+  function clearLog() {
+    testLog.length = 0;
+    renderTestLog();
+  }
+
+  function clearAll() {
+    selectedFile = null;
+    document.getElementById("img-input").value = "";
+    document.getElementById("preview-wrap").style.display = "none";
+    document.getElementById("result-display").style.display = "none";
+    document.getElementById("result-empty").style.display = "block";
+    document.getElementById("model-status").textContent = "Model Ready";
+    document.getElementById("model-status").className = "badge badge-online";
+  }
+</script>
+</body>
+</html>

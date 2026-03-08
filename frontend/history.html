@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SCPADPAS — Detection History</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🌿</div>
+    <h1>SCPADPAS</h1>
+    <p>v1.0 · Field Monitor</p>
+  </div>
+  <div class="sys-status">
+    <div class="status-dot"></div>
+    <span>System Online</span>
+  </div>
+  <div class="nav-section-label">Navigation</div>
+  <a href="index.html"   class="nav-link"><span class="nav-icon">📊</span> Dashboard</a>
+  <a href="test.html"    class="nav-link"><span class="nav-icon">🔬</span> AI Testing</a>
+  <a href="history.html" class="nav-link"><span class="nav-icon">📋</span> Detection History</a>
+  <a href="control.html" class="nav-link"><span class="nav-icon">🎛️</span> Device Control</a>
+  <div class="nav-section-label">System</div>
+  <a href="index.html" class="nav-link"><span class="nav-icon">🏠</span> Back to Dashboard</a>
+  <div class="sidebar-footer">
+    SCPADPAS IoT System<br>
+    Smart Crop Protection<br>
+    Animal Deterrent &<br>
+    Predator Alert System<br><br>
+    <span class="text-green">● </span>ESP32 Connected
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<div class="main-content">
+
+  <header class="topbar">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <button class="hamburger" id="hamburger-btn" aria-label="Menu">☰</button>
+      <div class="topbar-title">
+        <h2>📋 Detection History</h2>
+        <p>All recorded animal detection events from Firestore</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-time" id="live-clock">--:--:--</div>
+      <button class="btn btn-primary btn-sm" onclick="loadHistory()">
+        <span id="refresh-icon">🔄</span> Refresh
+      </button>
+    </div>
+  </header>
+
+  <main class="page-content">
+
+    <!-- ── Summary Stats ── -->
+    <div class="stats-grid" style="margin-bottom:24px;">
+      <div class="stat-card green">
+        <div class="stat-icon">📡</div>
+        <div class="stat-label">Total Records</div>
+        <div class="stat-value" id="h-total">—</div>
+        <div class="stat-sub">in database</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-icon">🦊</div>
+        <div class="stat-label">Wild Alerts</div>
+        <div class="stat-value" id="h-wild">—</div>
+        <div class="stat-sub">threat events</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-icon">🌿</div>
+        <div class="stat-label">NonWild</div>
+        <div class="stat-value" id="h-nonwild">—</div>
+        <div class="stat-sub">safe animals</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-icon">✅</div>
+        <div class="stat-label">No Animal</div>
+        <div class="stat-value" id="h-noanimal">—</div>
+        <div class="stat-sub">clear frames</div>
+      </div>
+    </div>
+
+    <!-- ── Filters + Table ── -->
+    <div class="section-card">
+      <div class="section-header">
+        <h3><span class="s-icon">📋</span> All Detections</h3>
+        <div class="filter-bar">
+          <select class="filter-select" id="filter-prediction" onchange="applyFilters()">
+            <option value="">All Predictions</option>
+            <option value="Wild">Wild</option>
+            <option value="NonWild">NonWild</option>
+            <option value="NoAnimal">NoAnimal</option>
+          </select>
+          <select class="filter-select" id="filter-limit" onchange="loadHistory()">
+            <option value="50">Last 50</option>
+            <option value="100">Last 100</option>
+            <option value="200">Last 200</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="exportCSV()">⬇️ Export CSV</button>
+        </div>
+      </div>
+
+      <!-- Search bar -->
+      <div style="padding:14px 24px; border-bottom:1px solid var(--border);">
+        <input
+          type="text"
+          id="search-input"
+          placeholder="🔍  Search by device ID or prediction…"
+          oninput="applyFilters()"
+          style="width:100%; background:var(--bg-surface); border:1px solid var(--border); border-radius:7px;
+                 color:var(--text-primary); font-family:'Exo 2',sans-serif; font-size:13px;
+                 padding:9px 16px; outline:none; transition:border-color 0.2s;"
+          onfocus="this.style.borderColor='var(--green-bright)'"
+          onblur="this.style.borderColor='var(--border)'"
+        />
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Record ID</th>
+              <th>Device ID</th>
+              <th>Prediction</th>
+              <th>Confidence</th>
+              <th>Confidence Bar</th>
+              <th>Timestamp</th>
+              <th>Time Ago</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody">
+            <tr>
+              <td colspan="8">
+                <div class="empty-state">
+                  <div class="e-icon">🔄</div>
+                  <h4>Loading…</h4>
+                  <p>Fetching records from Firestore</p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination info -->
+      <div style="padding:14px 24px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
+        <span class="mono muted" style="font-size:12px;" id="record-count-label">Showing 0 records</span>
+        <span class="mono muted" style="font-size:11px;">Data source: Firebase Firestore</span>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="script.js"></script>
+<script>
+  document.getElementById("hamburger-btn").addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.toggle("open");
+    document.getElementById("sidebar-overlay").classList.toggle("show");
+  });
+  document.getElementById("sidebar-overlay").addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.remove("open");
+    document.getElementById("sidebar-overlay").classList.remove("show");
+  });
+
+  let allRecords = [];
+
+  async function loadHistory() {
+    const icon  = document.getElementById("refresh-icon");
+    const limit = document.getElementById("filter-limit").value;
+    icon.classList.add("refreshing");
+
+    try {
+      const data = await apiFetch(`/history?limit=${limit}`);
+      allRecords = data.records || [];
+
+      // Compute stats
+      const wild     = allRecords.filter(r => r.prediction === "Wild").length;
+      const nonwild  = allRecords.filter(r => r.prediction === "NonWild").length;
+      const noanimal = allRecords.filter(r => r.prediction === "NoAnimal").length;
+
+      document.getElementById("h-total").textContent   = allRecords.length;
+      document.getElementById("h-wild").textContent    = wild;
+      document.getElementById("h-nonwild").textContent = nonwild;
+      document.getElementById("h-noanimal").textContent= noanimal;
+
+      applyFilters();
+      showToast(`Loaded ${allRecords.length} records`, "success", 2000);
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to load history: " + err.message, "error");
+      document.getElementById("history-tbody").innerHTML = `
+        <tr><td colspan="8">
+          <div class="empty-state">
+            <div class="e-icon">⚠️</div>
+            <h4>Failed to load</h4>
+            <p>${err.message}</p>
+          </div>
+        </td></tr>`;
+    } finally {
+      icon.classList.remove("refreshing");
+    }
+  }
+
+  function applyFilters() {
+    const predFilter = document.getElementById("filter-prediction").value;
+    const searchVal  = document.getElementById("search-input").value.toLowerCase().trim();
+
+    let filtered = allRecords;
+    if (predFilter) {
+      filtered = filtered.filter(r => r.prediction === predFilter);
+    }
+    if (searchVal) {
+      filtered = filtered.filter(r =>
+        (r.device_id || "").toLowerCase().includes(searchVal) ||
+        (r.prediction || "").toLowerCase().includes(searchVal) ||
+        (r.id || "").toLowerCase().includes(searchVal)
+      );
+    }
+
+    renderTable(filtered);
+  }
+
+  function renderTable(records) {
+    const tbody = document.getElementById("history-tbody");
+    document.getElementById("record-count-label").textContent = `Showing ${records.length} of ${allRecords.length} records`;
+
+    if (records.length === 0) {
+      tbody.innerHTML = `
+        <tr><td colspan="8">
+          <div class="empty-state">
+            <div class="e-icon">📡</div>
+            <h4>No records found</h4>
+            <p>Try adjusting your filters or upload images via AI Testing.</p>
+          </div>
+        </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = records.map((r, i) => {
+      const conf = parseFloat(r.confidence) || 0;
+      const cls  = r.prediction === "Wild" ? "wild" : r.prediction === "NonWild" ? "nonwild" : "noanimal";
+      const barColor = r.prediction === "Wild"
+        ? "var(--red)"
+        : r.prediction === "NonWild"
+        ? "var(--green-bright)"
+        : "var(--blue)";
+
+      return `<tr>
+        <td class="muted">${i + 1}</td>
+        <td style="font-size:11px; max-width:100px; overflow:hidden; text-overflow:ellipsis;" title="${r.id}">${r.id ? r.id.slice(0,12)+'…' : '—'}</td>
+        <td>${r.device_id || "—"}</td>
+        <td>${predictionBadge(r.prediction)}</td>
+        <td style="color:${barColor}; font-weight:700;">${conf}%</td>
+        <td style="min-width:100px;">
+          <div class="confidence-bar">
+            <div style="height:100%; width:${conf}%; background:${barColor}; border-radius:4px; transition:width 0.8s ease;"></div>
+          </div>
+        </td>
+        <td>${formatTimestamp(r.timestamp)}</td>
+        <td class="muted">${formatTimeAgo(r.timestamp)}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  function exportCSV() {
+    if (allRecords.length === 0) {
+      showToast("No records to export", "warning");
+      return;
+    }
+    const predFilter = document.getElementById("filter-prediction").value;
+    const searchVal  = document.getElementById("search-input").value.toLowerCase().trim();
+    let filtered = allRecords;
+    if (predFilter) filtered = filtered.filter(r => r.prediction === predFilter);
+    if (searchVal)  filtered = filtered.filter(r =>
+      (r.device_id||"").toLowerCase().includes(searchVal) ||
+      (r.prediction||"").toLowerCase().includes(searchVal)
+    );
+
+    const header = ["ID", "Device ID", "Prediction", "Confidence (%)", "Timestamp"];
+    const rows   = filtered.map(r =>
+      [r.id||"", r.device_id||"", r.prediction||"", r.confidence||"", r.timestamp||""].join(",")
+    );
+    const csv = [header.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    a.download = `SCPADPAS_history_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${filtered.length} records to CSV`, "success");
+  }
+
+  // Load on page init
+  loadHistory();
+  // Auto-refresh every 60 seconds
+  setInterval(loadHistory, 60000);
+</script>
+</body>
+</html>

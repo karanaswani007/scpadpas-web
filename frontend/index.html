@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SCPADPAS — Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Tailwind CDN (utility extras) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Tailwind config override to match our CSS vars */
+    :root { --tw-bg-opacity:1; }
+  </style>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🌿</div>
+    <h1>SCPADPAS</h1>
+    <p>v1.0 · Field Monitor</p>
+  </div>
+
+  <div class="sys-status">
+    <div class="status-dot" id="sys-dot"></div>
+    <span id="sys-label">System Online</span>
+  </div>
+
+  <div class="nav-section-label">Navigation</div>
+
+  <a href="index.html"   class="nav-link"><span class="nav-icon">📊</span> Dashboard</a>
+  <a href="test.html"    class="nav-link"><span class="nav-icon">🔬</span> AI Testing</a>
+  <a href="history.html" class="nav-link"><span class="nav-icon">📋</span> Detection History</a>
+  <a href="control.html" class="nav-link"><span class="nav-icon">🎛️</span> Device Control</a>
+
+  <div class="nav-section-label">System</div>
+  <a href="#" class="nav-link" onclick="refreshDashboard(); return false;">
+    <span class="nav-icon">🔄</span> Refresh Data
+  </a>
+
+  <div class="sidebar-footer">
+    SCPADPAS IoT System<br>
+    Smart Crop Protection<br>
+    Animal Deterrent &<br>
+    Predator Alert System<br><br>
+    <span class="text-green">● </span>ESP32 Connected
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<div class="main-content">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <button class="hamburger" id="hamburger-btn" aria-label="Menu">☰</button>
+      <div class="topbar-title">
+        <h2>Dashboard</h2>
+        <p>Real-time crop protection overview</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-time" id="live-clock">--:--:--</div>
+      <button class="btn btn-primary btn-sm" onclick="refreshDashboard()">
+        <span id="refresh-icon">🔄</span> Refresh
+      </button>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="page-content">
+
+    <!-- Alert banner (shown when wild detected) -->
+    <div class="alert-ticker" id="alert-banner" style="display:none;">
+      <span style="animation: blink 1s step-start infinite;">🚨</span>
+      <span id="alert-text">Wild animal detected recently! Siren may have activated.</span>
+    </div>
+
+    <!-- ── STAT CARDS ── -->
+    <div class="stats-grid">
+      <div class="stat-card green">
+        <div class="stat-icon">📡</div>
+        <div class="stat-label">Total Detections Today</div>
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-sub">events recorded</div>
+      </div>
+
+      <div class="stat-card red">
+        <div class="stat-icon">🦊</div>
+        <div class="stat-label">Wild Animal Alerts</div>
+        <div class="stat-value" id="stat-wild">—</div>
+        <div class="stat-sub">threat detections</div>
+      </div>
+
+      <div class="stat-card blue">
+        <div class="stat-icon">🌿</div>
+        <div class="stat-label">NonWild Detected</div>
+        <div class="stat-value" id="stat-nonwild">—</div>
+        <div class="stat-sub">safe animals</div>
+      </div>
+
+      <div class="stat-card amber">
+        <div class="stat-icon">✅</div>
+        <div class="stat-label">No Animal</div>
+        <div class="stat-value" id="stat-noanimal">—</div>
+        <div class="stat-sub">clear frames</div>
+      </div>
+    </div>
+
+    <!-- ── TWO COLUMN ── -->
+    <div class="two-col">
+
+      <!-- Last Detection -->
+      <div class="section-card">
+        <div class="section-header">
+          <h3><span class="s-icon">🕐</span> Last Detection</h3>
+          <span class="badge badge-online" id="live-badge">LIVE</span>
+        </div>
+        <div class="section-body">
+          <div id="last-detection-box" class="result-box" style="display:none;"></div>
+          <div id="last-detection-empty" class="empty-state">
+            <div class="e-icon">📷</div>
+            <h4>No detections today</h4>
+            <p>Waiting for field camera events…</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Device Status -->
+      <div class="section-card">
+        <div class="section-header">
+          <h3><span class="s-icon">🎛️</span> Device Status</h3>
+          <a href="control.html" class="btn btn-outline btn-sm">Manage →</a>
+        </div>
+        <div class="section-body">
+          <div class="toggle-wrap">
+            <div class="toggle-info">
+              <h4>System</h4>
+              <p>Main system power state</p>
+            </div>
+            <div class="flex gap-2">
+              <span id="ds-system" class="badge">—</span>
+            </div>
+          </div>
+          <div class="toggle-wrap">
+            <div class="toggle-info">
+              <h4>Siren</h4>
+              <p>Audio deterrent alarm</p>
+            </div>
+            <span id="ds-siren" class="badge">—</span>
+          </div>
+          <div class="toggle-wrap">
+            <div class="toggle-info">
+              <h4>Deterrent Speaker</h4>
+              <p>Animal sound repellent</p>
+            </div>
+            <span id="ds-deterrent" class="badge">—</span>
+          </div>
+          <p class="muted mono" style="font-size:11px; margin-top:12px;" id="ds-updated">Last updated: —</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── RECENT DETECTIONS TABLE ── -->
+    <div class="section-card">
+      <div class="section-header">
+        <h3><span class="s-icon">📋</span> Recent Detections</h3>
+        <a href="history.html" class="btn btn-outline btn-sm">View All →</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Device ID</th>
+              <th>Prediction</th>
+              <th>Confidence</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="recent-tbody">
+            <tr>
+              <td colspan="5">
+                <div class="empty-state">
+                  <div class="e-icon">🔄</div>
+                  <h4>Loading…</h4>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+  <!-- ═══ Shared Utilities (inlined from script.js) ═══ -->
+  <script>
+// ══════════════════════════════════════════════════════════════════
+//  script.js  –  SCPADPAS Shared Frontend Utilities
+//  Loaded on every page for sidebar, toasts, time, etc.
+// ══════════════════════════════════════════════════════════════════
+
+// ─── Backend base URL ─────────────────────────────────────────────
+// Change this when deploying; keep /api prefix
+const API_BASE = window.location.origin + "/api";
+
+// ─── Live clock ───────────────────────────────────────────────────
+function updateClock() {
+  const el = document.getElementById("live-clock");
+  if (!el) return;
+  const now = new Date();
+  el.textContent = now.toLocaleString("en-GB", {
+    day:    "2-digit",
+    month:  "short",
+    year:   "numeric",
+    hour:   "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── Sidebar toggle (mobile) ──────────────────────────────────────
+const sidebar  = document.querySelector(".sidebar");
+const overlay  = document.querySelector(".sidebar-overlay");
+const hamburger = document.querySelector(".hamburger");
+
+if (hamburger) {
+  hamburger.addEventListener("click", () => {
+    sidebar?.classList.toggle("open");
+    overlay?.classList.toggle("show");
+  });
+}
+if (overlay) {
+  overlay.addEventListener("click", () => {
+    sidebar?.classList.remove("open");
+    overlay.classList.remove("show");
+  });
+}
+
+// Mark active nav link
+(function markActive() {
+  const path = window.location.pathname.split("/").pop() || "index.html";
+  document.querySelectorAll(".nav-link").forEach((link) => {
+    const href = link.getAttribute("href") || "";
+    if (href === path || (path === "" && href === "index.html")) {
+      link.classList.add("active");
+    }
+  });
+})();
+
+// ─── Toast notifications ──────────────────────────────────────────
+function showToast(message, type = "success", duration = 3500) {
+  const icons = { success: "✅", error: "❌", warning: "⚠️", info: "ℹ️" };
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${icons[type] || "ℹ️"}</span><span>${message}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transform = "translateX(30px)";
+    toast.style.transition = "all 0.3s ease";
+    setTimeout(() => toast.remove(), 350);
+  }, duration);
+}
+
+// ─── Generic API helpers ──────────────────────────────────────────
+async function apiFetch(path, options = {}) {
+  const res = await fetch(API_BASE + path, options);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// ─── Format helpers ───────────────────────────────────────────────
+function formatTimestamp(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatTimeAgo(iso) {
+  if (!iso) return "—";
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60)   return `${Math.round(diff)}s ago`;
+  if (diff < 3600) return `${Math.round(diff / 60)}m ago`;
+  if (diff < 86400)return `${Math.round(diff / 3600)}h ago`;
+  return `${Math.round(diff / 86400)}d ago`;
+}
+
+function predictionBadge(prediction) {
+  const map = {
+    "Wild":     `<span class="badge badge-wild">🦊 Wild</span>`,
+    "NonWild":  `<span class="badge badge-nonwild">🌿 NonWild</span>`,
+    "NoAnimal": `<span class="badge badge-noanimal">✅ NoAnimal</span>`,
+  };
+  return map[prediction] || `<span class="badge">${prediction}</span>`;
+}
+
+function confBar(pct, cls) {
+  return `<div class="confidence-bar">
+    <div class="confidence-fill" style="width:${pct}%" data-target="${pct}" data-cls="${cls}"></div>
+  </div>`;
+}
+
+// Animate confidence bars after DOM insert
+function animateBars() {
+  document.querySelectorAll(".confidence-fill[data-target]").forEach((el) => {
+    const target = el.dataset.target;
+    el.style.width = "0%";
+    requestAnimationFrame(() => {
+      setTimeout(() => { el.style.width = target + "%"; }, 80);
+    });
+  });
+}
+
+// ─── Drag-and-drop for upload zone ───────────────────────────────
+function initUploadZone(zoneId, inputId, onFile) {
+  const zone  = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+  if (!zone || !input) return;
+
+  ["dragenter", "dragover"].forEach((e) =>
+    zone.addEventListener(e, (ev) => { ev.preventDefault(); zone.classList.add("dragover"); })
+  );
+  ["dragleave", "drop"].forEach((e) =>
+    zone.addEventListener(e, (ev) => { ev.preventDefault(); zone.classList.remove("dragover"); })
+  );
+  zone.addEventListener("drop", (ev) => {
+    const file = ev.dataTransfer.files[0];
+    if (file) onFile(file);
+  });
+  input.addEventListener("change", () => {
+    if (input.files[0]) onFile(input.files[0]);
+  });
+}
+
+  </script>
+<script>
+  // Hamburger wiring (already in script.js but ensure IDs match)
+  document.getElementById("hamburger-btn").addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.toggle("open");
+    document.getElementById("sidebar-overlay").classList.toggle("show");
+  });
+  document.getElementById("sidebar-overlay").addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.remove("open");
+    document.getElementById("sidebar-overlay").classList.remove("show");
+  });
+
+  async function refreshDashboard() {
+    const icon = document.getElementById("refresh-icon");
+    icon.classList.add("refreshing");
+
+    try {
+      // Load stats
+      const stats = await apiFetch("/dashboard-stats");
+      document.getElementById("stat-total").textContent    = stats.total_today ?? 0;
+      document.getElementById("stat-wild").textContent     = stats.wild ?? 0;
+      document.getElementById("stat-nonwild").textContent  = stats.non_wild ?? 0;
+      document.getElementById("stat-noanimal").textContent = stats.no_animal ?? 0;
+
+      // Last detection box
+      const lde = document.getElementById("last-detection-empty");
+      const ldb = document.getElementById("last-detection-box");
+
+      if (stats.last_detection) {
+        const p = stats.last_prediction || "Unknown";
+        const cls = p.toLowerCase().replace("noanimal","noanimal");
+        ldb.className = `result-box ${cls}`;
+        ldb.innerHTML = `
+          <div class="result-prediction ${p === 'Wild' ? 'text-red' : p === 'NonWild' ? 'text-green' : 'text-blue'}">
+            ${p === 'Wild' ? '🦊' : p === 'NonWild' ? '🌿' : '✅'} ${p}
+          </div>
+          <div class="result-confidence">
+            Last detected: ${formatTimestamp(stats.last_detection)}<br>
+            <span style="font-size:11px; opacity:0.7">${formatTimeAgo(stats.last_detection)}</span>
+          </div>`;
+        ldb.style.display = "block";
+        lde.style.display = "none";
+
+        // Show alert if last prediction is Wild
+        if (p === "Wild") {
+          document.getElementById("alert-banner").style.display = "flex";
+          document.getElementById("alert-text").textContent =
+            `🦊 Wild animal detected ${formatTimeAgo(stats.last_detection)}! Check field immediately.`;
+        } else {
+          document.getElementById("alert-banner").style.display = "none";
+        }
+      } else {
+        ldb.style.display = "none";
+        lde.style.display = "block";
+      }
+
+      // Load device status
+      const dev = await apiFetch("/device-status");
+
+      function setStatusBadge(id, val) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = val ? "● ON" : "○ OFF";
+        el.className   = val ? "badge badge-online" : "badge badge-offline";
+      }
+
+      setStatusBadge("ds-system",    dev.system_enabled);
+      setStatusBadge("ds-siren",     dev.siren);
+      setStatusBadge("ds-deterrent", dev.deterrent);
+
+      const dsUpdated = document.getElementById("ds-updated");
+      if (dsUpdated) dsUpdated.textContent = `Last updated: ${formatTimestamp(dev.updated_at)}`;
+
+      // Update sys dot
+      document.getElementById("sys-dot").className = dev.system_enabled ? "status-dot" : "status-dot offline";
+      document.getElementById("sys-label").textContent = dev.system_enabled ? "System Online" : "System Offline";
+
+      // Load recent history (last 8)
+      const hist = await apiFetch("/history?limit=8");
+      const tbody = document.getElementById("recent-tbody");
+      if (hist.records.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="e-icon">📡</div><h4>No detections yet</h4><p>Field camera events will appear here.</p></div></td></tr>`;
+      } else {
+        tbody.innerHTML = hist.records.map((r, i) => `
+          <tr>
+            <td class="muted">${i + 1}</td>
+            <td>${r.device_id || "—"}</td>
+            <td>${predictionBadge(r.prediction)}</td>
+            <td>${r.confidence}%</td>
+            <td>${formatTimestamp(r.timestamp)}</td>
+          </tr>`).join("");
+      }
+
+      showToast("Dashboard refreshed", "success", 2000);
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to load data: " + err.message, "error");
+    } finally {
+      icon.classList.remove("refreshing");
+    }
+  }
+
+  // Auto-refresh every 30 seconds
+  refreshDashboard();
+  setInterval(refreshDashboard, 30000);
+</script>
+</body>
+</html>

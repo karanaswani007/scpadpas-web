@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SCPADPAS — Device Control</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🌿</div>
+    <h1>SCPADPAS</h1>
+    <p>v1.0 · Field Monitor</p>
+  </div>
+  <div class="sys-status">
+    <div class="status-dot" id="sys-dot"></div>
+    <span id="sys-status-label">System Online</span>
+  </div>
+  <div class="nav-section-label">Navigation</div>
+  <a href="index.html"   class="nav-link"><span class="nav-icon">📊</span> Dashboard</a>
+  <a href="test.html"    class="nav-link"><span class="nav-icon">🔬</span> AI Testing</a>
+  <a href="history.html" class="nav-link"><span class="nav-icon">📋</span> Detection History</a>
+  <a href="control.html" class="nav-link"><span class="nav-icon">🎛️</span> Device Control</a>
+  <div class="nav-section-label">System</div>
+  <a href="index.html" class="nav-link"><span class="nav-icon">🏠</span> Back to Dashboard</a>
+  <div class="sidebar-footer">
+    SCPADPAS IoT System<br>
+    Smart Crop Protection<br>
+    Animal Deterrent &<br>
+    Predator Alert System<br><br>
+    <span class="text-green">● </span>ESP32 Connected
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<div class="main-content">
+
+  <header class="topbar">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <button class="hamburger" id="hamburger-btn" aria-label="Menu">☰</button>
+      <div class="topbar-title">
+        <h2>🎛️ Device Control Panel</h2>
+        <p>Send commands to ESP32 field device via Firestore</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-time" id="live-clock">--:--:--</div>
+      <button class="btn btn-primary btn-sm" onclick="loadStatus()">
+        <span id="refresh-icon">🔄</span> Sync
+      </button>
+    </div>
+  </header>
+
+  <main class="page-content">
+
+    <!-- Info banner -->
+    <div class="alert-ticker info" style="margin-bottom:24px;">
+      <span>📡</span>
+      <span>Commands are written to Firestore in real-time. The ESP32 device reads changes within 1–2 seconds.</span>
+    </div>
+
+    <div class="two-col" style="align-items:start;">
+
+      <!-- ── LEFT: Control Switches ── -->
+      <div>
+
+        <!-- Main Controls Card -->
+        <div class="section-card">
+          <div class="section-header">
+            <h3><span class="s-icon">⚡</span> System Controls</h3>
+            <span id="ctrl-status-badge" class="badge badge-online">Synced</span>
+          </div>
+          <div class="section-body">
+
+            <!-- System ON/OFF -->
+            <div class="toggle-wrap">
+              <div class="toggle-info">
+                <h4>🔌 System Power</h4>
+                <p>Enable or disable the entire SCPADPAS field unit</p>
+              </div>
+              <div style="display:flex; align-items:center; gap:14px;">
+                <span id="lbl-system" class="mono muted" style="font-size:12px;">OFF</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-system" onchange="sendCommand('system_enabled', this.checked)" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Siren -->
+            <div class="toggle-wrap">
+              <div class="toggle-info">
+                <h4>🔊 Siren</h4>
+                <p>Activate loud audio alarm to scare away intruders</p>
+              </div>
+              <div style="display:flex; align-items:center; gap:14px;">
+                <span id="lbl-siren" class="mono muted" style="font-size:12px;">OFF</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-siren" onchange="sendCommand('siren', this.checked)" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Deterrent Speaker -->
+            <div class="toggle-wrap">
+              <div class="toggle-info">
+                <h4>📢 Deterrent Speaker</h4>
+                <p>Play predator sounds to repel wild animals</p>
+              </div>
+              <div style="display:flex; align-items:center; gap:14px;">
+                <span id="lbl-deterrent" class="mono muted" style="font-size:12px;">OFF</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-deterrent" onchange="sendCommand('deterrent', this.checked)" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Emergency Actions -->
+        <div class="section-card">
+          <div class="section-header">
+            <h3><span class="s-icon">🚨</span> Emergency Actions</h3>
+          </div>
+          <div class="section-body">
+            <div style="display:grid; gap:12px;">
+              <button class="btn btn-primary btn-lg w-full" onclick="activateAll()">
+                🚨 ACTIVATE ALL DETERRENTS
+              </button>
+              <button class="btn btn-outline btn-lg w-full" onclick="deactivateAll()">
+                ✅ DEACTIVATE ALL (Safe Mode)
+              </button>
+              <button class="btn btn-danger btn-lg w-full" onclick="emergencyOff()">
+                ⛔ EMERGENCY SHUTDOWN
+              </button>
+            </div>
+            <p class="muted mono" style="font-size:11px; margin-top:14px; text-align:center;">
+              Emergency actions immediately update all Firestore command fields
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── RIGHT: Status + Firestore Preview ── -->
+      <div>
+
+        <!-- Current Device State -->
+        <div class="section-card">
+          <div class="section-header">
+            <h3><span class="s-icon">📡</span> Current Device State</h3>
+          </div>
+          <div class="section-body">
+
+            <div class="device-grid" style="grid-template-columns:1fr; gap:14px;">
+
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:14px; background:var(--bg-surface); border:1px solid var(--border); border-radius:9px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="font-size:24px;">🔌</div>
+                  <div>
+                    <div style="font-size:13px; font-weight:600;">System Power</div>
+                    <div class="muted" style="font-size:11px; font-family:'Share Tech Mono',monospace;">system_enabled</div>
+                  </div>
+                </div>
+                <span id="state-system" class="badge badge-offline">○ OFF</span>
+              </div>
+
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:14px; background:var(--bg-surface); border:1px solid var(--border); border-radius:9px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="font-size:24px;">🔊</div>
+                  <div>
+                    <div style="font-size:13px; font-weight:600;">Siren</div>
+                    <div class="muted" style="font-size:11px; font-family:'Share Tech Mono',monospace;">siren</div>
+                  </div>
+                </div>
+                <span id="state-siren" class="badge badge-offline">○ OFF</span>
+              </div>
+
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:14px; background:var(--bg-surface); border:1px solid var(--border); border-radius:9px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="font-size:24px;">📢</div>
+                  <div>
+                    <div style="font-size:13px; font-weight:600;">Deterrent Speaker</div>
+                    <div class="muted" style="font-size:11px; font-family:'Share Tech Mono',monospace;">deterrent</div>
+                  </div>
+                </div>
+                <span id="state-deterrent" class="badge badge-offline">○ OFF</span>
+              </div>
+
+            </div>
+
+            <div style="margin-top:20px; background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:16px;">
+              <div style="font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px;">
+                Firestore Document Preview
+              </div>
+              <pre id="firestore-preview" style="font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--green-bright); line-height:1.8; margin:0; white-space:pre-wrap;">
+{
+  "system_enabled": false,
+  "siren":          false,
+  "deterrent":      false,
+  "updated_at":     "—"
+}</pre>
+            </div>
+
+            <p class="muted mono" style="font-size:11px; margin-top:12px;" id="last-sync-label">
+              Last synced: —
+            </p>
+          </div>
+        </div>
+
+        <!-- ESP32 Integration Guide -->
+        <div class="section-card">
+          <div class="section-header">
+            <h3><span class="s-icon">🤖</span> ESP32 Integration</h3>
+          </div>
+          <div class="section-body">
+            <p style="font-size:13px; color:var(--text-secondary); line-height:1.7; margin-bottom:14px;">
+              Your ESP32 reads the Firestore document <code style="background:var(--bg-base); padding:2px 7px; border-radius:4px; font-size:11px; color:var(--green-bright);">devices/device_commands</code> using the Firebase REST API. Include the code below in your ESP32 firmware:
+            </p>
+
+            <div style="background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:16px; overflow-x:auto;">
+              <div style="font-size:10px; color:var(--text-muted); margin-bottom:10px; letter-spacing:0.1em; text-transform:uppercase;">Arduino / ESP32 Pseudocode</div>
+              <pre style="font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary); line-height:1.8; margin:0; white-space:pre-wrap;">// 1. Connect to WiFi
+WiFi.begin(SSID, PASSWORD);
+
+// 2. Poll Firestore every 2 seconds
+String url = "https://firestore.googleapis.com/v1/"
+  "projects/YOUR_PROJECT_ID/databases/(default)/"
+  "documents/devices/device_commands"
+  "?key=YOUR_WEB_API_KEY";
+
+// 3. Parse JSON response
+DynamicJsonDocument doc(1024);
+deserializeJson(doc, response);
+
+bool sysEnabled = doc["fields"]
+  ["system_enabled"]["booleanValue"];
+bool siren      = doc["fields"]
+  ["siren"]["booleanValue"];
+bool deterrent  = doc["fields"]
+  ["deterrent"]["booleanValue"];
+
+// 4. Act on commands
+digitalWrite(SIREN_PIN, siren ? HIGH : LOW);
+digitalWrite(SPKR_PIN, deterrent ? HIGH : LOW);</pre>
+            </div>
+
+            <div style="margin-top:14px; padding:12px 16px; background:rgba(74,222,128,0.06); border:1px solid rgba(74,222,128,0.2); border-radius:8px; font-size:12px; color:var(--text-secondary); line-height:1.7;">
+              <strong class="text-green">📦 Required Libraries:</strong><br>
+              WiFi.h · HTTPClient.h · ArduinoJson.h
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Command Log -->
+    <div class="section-card">
+      <div class="section-header">
+        <h3><span class="s-icon">📝</span> Session Command Log</h3>
+        <button class="btn btn-outline btn-sm" onclick="clearCmdLog()">Clear</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Command</th>
+              <th>Value</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="cmd-log-tbody">
+            <tr>
+              <td colspan="4" style="text-align:center; color:var(--text-muted); padding:24px; font-family:'Share Tech Mono',monospace; font-size:12px;">
+                No commands sent this session
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="script.js"></script>
+<script>
+  document.getElementById("hamburger-btn").addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.toggle("open");
+    document.getElementById("sidebar-overlay").classList.toggle("show");
+  });
+  document.getElementById("sidebar-overlay").addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.remove("open");
+    document.getElementById("sidebar-overlay").classList.remove("show");
+  });
+
+  const cmdLog = [];
+
+  // Update UI from device status object
+  function applyStatus(dev) {
+    // Toggles
+    document.getElementById("toggle-system").checked   = !!dev.system_enabled;
+    document.getElementById("toggle-siren").checked    = !!dev.siren;
+    document.getElementById("toggle-deterrent").checked= !!dev.deterrent;
+
+    // Labels
+    document.getElementById("lbl-system").textContent   = dev.system_enabled ? "ON"  : "OFF";
+    document.getElementById("lbl-system").className     = dev.system_enabled ? "mono text-green" : "mono muted";
+    document.getElementById("lbl-siren").textContent    = dev.siren ? "ON"  : "OFF";
+    document.getElementById("lbl-siren").className      = dev.siren ? "mono text-green" : "mono muted";
+    document.getElementById("lbl-deterrent").textContent= dev.deterrent ? "ON" : "OFF";
+    document.getElementById("lbl-deterrent").className  = dev.deterrent ? "mono text-green" : "mono muted";
+
+    // State badges
+    const stateBadge = (v) => v
+      ? `<span class="badge badge-online">● ON</span>`
+      : `<span class="badge badge-offline">○ OFF</span>`;
+    document.getElementById("state-system").outerHTML    = stateBadge(dev.system_enabled).replace('class=','id="state-system" class=');
+    document.getElementById("state-siren").outerHTML     = stateBadge(dev.siren).replace('class=','id="state-siren" class=');
+    document.getElementById("state-deterrent").outerHTML = stateBadge(dev.deterrent).replace('class=','id="state-deterrent" class=');
+
+    // Sidebar dot
+    document.getElementById("sys-dot").className = dev.system_enabled ? "status-dot" : "status-dot offline";
+    document.getElementById("sys-status-label").textContent = dev.system_enabled ? "System Online" : "System Offline";
+
+    // Firestore preview
+    document.getElementById("firestore-preview").textContent =
+      JSON.stringify({
+        system_enabled: !!dev.system_enabled,
+        siren:          !!dev.siren,
+        deterrent:      !!dev.deterrent,
+        updated_at:     dev.updated_at || "—",
+      }, null, 2);
+
+    document.getElementById("last-sync-label").textContent = `Last synced: ${formatTimestamp(new Date().toISOString())}`;
+  }
+
+  async function loadStatus() {
+    const icon = document.getElementById("refresh-icon");
+    icon.classList.add("refreshing");
+    try {
+      const dev = await apiFetch("/device-status");
+      applyStatus(dev);
+      document.getElementById("ctrl-status-badge").textContent = "Synced";
+      document.getElementById("ctrl-status-badge").className   = "badge badge-online";
+    } catch (err) {
+      showToast("Failed to load device status: " + err.message, "error");
+      document.getElementById("ctrl-status-badge").textContent = "Error";
+      document.getElementById("ctrl-status-badge").className   = "badge badge-offline";
+    } finally {
+      icon.classList.remove("refreshing");
+    }
+  }
+
+  async function sendCommand(field, value) {
+    document.getElementById("ctrl-status-badge").textContent = "Sending…";
+    document.getElementById("ctrl-status-badge").className   = "badge badge-offline";
+
+    const body = { [field]: value };
+    const entry = { time: new Date().toISOString(), command: field, value, status: "Sending…" };
+    cmdLog.unshift(entry);
+    renderCmdLog();
+
+    try {
+      await apiFetch("/device-control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      entry.status = "✅ Success";
+      renderCmdLog();
+
+      document.getElementById("ctrl-status-badge").textContent = "Synced";
+      document.getElementById("ctrl-status-badge").className   = "badge badge-online";
+
+      // Update local label immediately
+      const lblMap = { system_enabled: "lbl-system", siren: "lbl-siren", deterrent: "lbl-deterrent" };
+      if (lblMap[field]) {
+        const lbl = document.getElementById(lblMap[field]);
+        lbl.textContent = value ? "ON" : "OFF";
+        lbl.className   = value ? "mono text-green" : "mono muted";
+      }
+
+      // Update Firestore preview
+      const prev = JSON.parse(document.getElementById("firestore-preview").textContent);
+      prev[field] = value;
+      prev.updated_at = new Date().toISOString();
+      document.getElementById("firestore-preview").textContent = JSON.stringify(prev, null, 2);
+
+      const friendlyName = { system_enabled: "System Power", siren: "Siren", deterrent: "Deterrent Speaker" };
+      showToast(`${friendlyName[field] || field} turned ${value ? "ON" : "OFF"}`, value ? "success" : "warning");
+    } catch (err) {
+      entry.status = "❌ Failed";
+      renderCmdLog();
+
+      // Revert toggle
+      document.getElementById("toggle-" + field.replace("_enabled","").replace("system_enabled","system")).checked = !value;
+      document.getElementById("ctrl-status-badge").textContent = "Error";
+      document.getElementById("ctrl-status-badge").className   = "badge badge-offline";
+      showToast("Command failed: " + err.message, "error");
+    }
+  }
+
+  function renderCmdLog() {
+    const tbody = document.getElementById("cmd-log-tbody");
+    if (cmdLog.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;font-family:'Share Tech Mono',monospace;font-size:12px;">No commands sent this session</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = cmdLog.map(l => `
+      <tr>
+        <td>${formatTimestamp(l.time)}</td>
+        <td style="color:var(--green-bright);">${l.command}</td>
+        <td>${l.value
+          ? `<span class="badge badge-online">true</span>`
+          : `<span class="badge badge-offline">false</span>`}
+        </td>
+        <td class="mono" style="font-size:12px;">${l.status}</td>
+      </tr>`).join("");
+  }
+
+  function clearCmdLog() { cmdLog.length = 0; renderCmdLog(); }
+
+  async function activateAll() {
+    if (!confirm("Activate ALL deterrents (System + Siren + Speaker)?")) return;
+    document.getElementById("toggle-system").checked   = true;
+    document.getElementById("toggle-siren").checked    = true;
+    document.getElementById("toggle-deterrent").checked= true;
+    try {
+      await apiFetch("/device-control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system_enabled: true, siren: true, deterrent: true }),
+      });
+      loadStatus();
+      showToast("🚨 All deterrents ACTIVATED", "warning");
+      ["system_enabled","siren","deterrent"].forEach(f =>
+        cmdLog.unshift({ time: new Date().toISOString(), command: f, value: true, status: "✅ Success" })
+      );
+      renderCmdLog();
+    } catch (err) { showToast("Failed: " + err.message, "error"); }
+  }
+
+  async function deactivateAll() {
+    document.getElementById("toggle-system").checked   = true;
+    document.getElementById("toggle-siren").checked    = false;
+    document.getElementById("toggle-deterrent").checked= false;
+    try {
+      await apiFetch("/device-control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system_enabled: true, siren: false, deterrent: false }),
+      });
+      loadStatus();
+      showToast("✅ Safe mode activated", "success");
+    } catch (err) { showToast("Failed: " + err.message, "error"); }
+  }
+
+  async function emergencyOff() {
+    if (!confirm("⛔ Emergency shutdown: turn OFF ALL systems?")) return;
+    document.getElementById("toggle-system").checked   = false;
+    document.getElementById("toggle-siren").checked    = false;
+    document.getElementById("toggle-deterrent").checked= false;
+    try {
+      await apiFetch("/device-control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system_enabled: false, siren: false, deterrent: false }),
+      });
+      loadStatus();
+      showToast("⛔ System shut down", "error");
+    } catch (err) { showToast("Failed: " + err.message, "error"); }
+  }
+
+  // Load status on init
+  loadStatus();
+  // Auto-refresh every 15 seconds
+  setInterval(loadStatus, 15000);
+</script>
+</body>
+</html>
