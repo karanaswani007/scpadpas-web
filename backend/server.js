@@ -41,10 +41,20 @@ app.listen(PORT, () => {
   console.log(`   Firebase Project: ${process.env.FIREBASE_PROJECT_ID}\n`);
 });
 
-// Keep-alive ping - Render ko sone nahi deta
+// Keep-alive - Backend + AI API dono jagaye rakho
 const axios = require("axios");
-setInterval(() => {
+
+function keepAlive() {
+  // Backend ping
   axios.get("https://scpadpas-web.onrender.com/api/health")
-    .then(() => console.log("[KeepAlive] Backend awake ✓"))
+    .then(() => console.log("[KeepAlive] Backend ✓"))
     .catch(() => {});
-}, 14 * 60 * 1000); // har 14 minute mein ping
+
+  // AI API ping (alag repo - koi baat nahi!)
+  axios.get("https://scpadpas-hmt7.onrender.com/")
+    .then(() => console.log("[KeepAlive] AI API ✓"))
+    .catch(() => {});
+}
+
+setInterval(keepAlive, 14 * 60 * 1000); // har 14 min
+keepAlive(); // startup pe turant
